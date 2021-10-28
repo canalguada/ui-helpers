@@ -1,0 +1,91 @@
+#!/bin/sh
+
+PROG=${0##*/}
+
+[ -n "$UI_STATUSES_DIR" ] &&
+	SHM=$UI_STATUSES_DIR ||
+	SHM="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ui-statuses"
+
+WATCHFILE="$SHM/raw-volume"
+
+default=notification
+if command -v xob >/dev/null 2>&1; then
+	default=xob
+fi
+mode=$default
+
+while [ -n "$1" ]; do
+	case "$1" in
+		-*)
+			: ;;
+		*)
+			break ;;
+	esac
+	case "$1" in
+		-s|-simple|--simple)
+			mode="notification" ;;
+		-x|-xob|--xob)
+			[ "$default" = "xob" ] && mode="xob" ;;
+		-d|-dir|--dir)			 
+			case "$2" in
+				-*) : ;;
+				*)
+					if [ -n "$2" ] && [ -d "$2" ]; then
+						SHM=$2
+						shift
+					fi
+					;;
+			esac
+			;;
+		*)
+			exit 1 ;;
+	esac
+	shift
+done
+
+# if ! pgrep -f pulse-volume-watcher >/dev/null 2>&1; then
+#   { pulse-volume-watcher | tee "$WATCHFILE" ; } &
+# fi
+
+old=0
+
+if [ "$mode" = "xob" ]; then
+	inotifywait -q -m --include "$WATCHFILE" --format "%w%f" \
+		-e modify `dirname $WATCHFILE` |
+		xargs -I{} tail -n1 {} |
+		xob -s volume
+else
+	inotifywait -q -m --include "$WATCHFILE" --format "%w%f" \
+		-e modify `dirname $WATCHFILE` |
+		xargs -I{} tail -n1 {} |
+		while read -r data; do
+			perc=${data%!}
+			case "$data" in
+				*!)
+					# Muted
+					notify-send -a "$PROG" -u low -t 1000 \
+						-i audio-volume-muted \
+						--hint=int:transient:1 \
+						"Mute toggle" "Muted: Volume ${perc}%"
+					;;
+				*)
+					if [ "$perc" -ge "$old" ]; then
+						icon="audio-volume-high"
+						up_or_down="up"
+					else
+						icon="audio-volume-low"
+						up_or_down="down"
+					fi
+					notify-send -a "$PROG" -u low -t 1000 \
+						-i $icon \
+						--hint=int:transient:1 \
+						--hint=int:value:$perc \
+						--hint=string:synchronous:volume \
+						"Volume $up_or_down ${perc}%" ""
+					;;
+			esac
+			old=$perc
+		done
+fi
+
+# vim: set ft=sh fdm=indent ai ts=2 sw=2 tw=79 noet:

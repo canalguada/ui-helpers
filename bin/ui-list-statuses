@@ -1,0 +1,26 @@
+#!/bin/sh
+
+[ -n "$UI_STATUSES_DIR" ] &&
+	SHM=$UI_STATUSES_DIR ||
+	SHM="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ui-statuses"
+
+while read -r f; do
+	rc="$SHM/$f"
+	[ ! -f "$rc" ] &&
+		echo "$f not found in $SHM" && continue
+	read -r line <"$rc"
+	echo "$line"
+done <<_EOF_
+cpupercent
+mempercent
+swapused
+loadavg
+downspeed
+upspeed
+downtotal
+uptotal
+volume
+mpris
+_EOF_
+
+# vim: set ft=sh fdm=indent ai ts=2 sw=2 tw=79 noet:

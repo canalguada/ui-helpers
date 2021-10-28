@@ -1,0 +1,47 @@
+#!/bin/sh
+
+PROG=$(basename "$0")
+
+usage() {
+  if [ -t 1 ]; then
+    cat <<-EOF
+		Usage: $PROG NUMBER[SUFFIX]... -- COMMAND [ARGS...]
+		Delay the execution of a command for a specified amount of time
+		
+		SUFFIX can be 's' (default) for seconds, 'm' for minutes, 'h' for hours or
+		'd' for days.
+		EOF
+  fi
+}
+if [ $# -lt 3 ]; then
+  usage
+  exit 1
+fi
+
+SLEEP_VALUES=
+
+while :; do
+	if [ -n "$(echo $1 |awk '/^[0-9]+(s|m|h|d)?$/{print $0}')" ]; then
+		SLEEP_VALUES="$SLEEP_VALUES $1"
+		shift
+	elif [ "$1" = "--" ]; then
+		shift
+		break
+	else
+		usage
+		exit 1
+	fi
+done
+
+[ -z "$SLEEP_VALUES" ] && { usage; exit 1; }
+
+if ! command -v $1 >/dev/null 2>&1; then
+	echo "$PROG: $(basename "$1") not found" >&2
+	exit 2
+fi
+
+$(command -v sleep) $SLEEP_VALUES
+
+exec "$@"
+
+# vim: set ft=sh fdm=indent ts=2 sw=2 tw=79 noet:
